@@ -121,13 +121,9 @@
         <p>Los costos de envío se cobran por separado. Todos los derechos reservados &copy; 2025.</p>
     </footer>
 
-    <!-- 
-    ==== 7. CARGA DE LIBRERÍAS EXTERNAS ==== 
-    Movidos del <head> al final del <body> para asegurar
-    que se carguen ANTES del script principal de la aplicación.
-    -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/papaparse/5.4.1/papaparse.min.js"></script>
+    <!-- ==== 7. CARGA DE LIBRERÍAS EXTERNAS ==== -->
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
 
     <!-- ==== 8. SCRIPT PRINCIPAL DE LA APLICACIÓN ==== -->
@@ -156,8 +152,7 @@
 
         // --- INICIALIZACIÓN ---
         
-        // CORRECCIÓN: Implementar un verificador de librerías.
-        // Se ejecuta al cargar la ventana.
+        // Implementación robusta que espera a que las librerías se carguen.
         window.onload = () => {
             let maxAttempts = 50; // 50 intentos * 100ms = 5 segundos
             let attempts = 0;
@@ -172,7 +167,7 @@
                     setTimeout(checkLibraries, 100);
                 } else {
                     // Se superó el tiempo, mostrar error
-                    console.error("Timeout: PapaParse o jsPDF no se cargaron.");
+                    console.error("Timeout: PapaParse o jsPDF no se cargaron desde JSDelivr.");
                     showError("Error: No se pudieron cargar las librerías. Revisa tu conexión a internet y refresca la página.");
                     showLoading(false); // Ocultar spinner
                 }
@@ -285,10 +280,10 @@
                     return;
                 }
                 
-                // Limpiar y validar el precio
-                // El CSV de Google puede exportar "560,00" o "$560.00"
-                const priceString = product.Precio.replace("$", "").replace(",", "."); // Limpiar
-                const priceFloat = parseFloat(priceString);
+                // --- INICIO DE CORRECCIÓN DE PRECIO ---
+                // Esta es la lógica que arregla los formatos "$1,100.00" y "$350,00"
+                const priceFloat = getPriceAsNumber(product.Precio);
+                // --- FIN DE CORRECCIÓN DE PRECIO ---
 
                 if (isNaN(priceFloat)) {
                     console.warn("Producto omitido por precio inválido:", product);
@@ -356,13 +351,28 @@
             saveCart();
         }
 
+        /**
+         * CORRECCIÓN: Esta función ahora maneja ambos casos:
+         * 1. "$1,100.00" (coma de miles, punto decimal)
+         * 2. "$350,00" (sin miles, coma decimal)
+         */
         function getPriceAsNumber(price) {
             if (typeof price === 'number') return price;
-            if (typeof price === 'string') {
-                const priceString = price.replace("$", "").replace(",", ".");
-                return parseFloat(priceString);
+            if (typeof price !== 'string') return 0;
+            
+            let priceString = price.replace("$", "").trim();
+            
+            // Detectar si el formato usa coma para decimales (ej. "350,00")
+            // Lo detectamos si hay una coma Y NINGÚN punto.
+            if (priceString.includes(',') && !priceString.includes('.')) {
+                // Es formato "350,00". Reemplazamos coma por punto.
+                priceString = priceString.replace(",", "."); 
+            } else {
+                // Es formato "1,100.00". Solo quitamos la coma de miles.
+                priceString = priceString.replace(/,/g, ""); 
             }
-            return 0; // Fallback
+            
+            return parseFloat(priceString);
         }
 
         function updateCartUI() {
